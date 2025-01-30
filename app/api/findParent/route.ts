@@ -1,25 +1,84 @@
-// app/api/findParent/route.ts
+// api/findParent/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function POST(request: Request) {
-  const { phone } = await request.json();
-
+// api/findParent/route.ts
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const phone = searchParams.get('phone');
+
+    if (!phone) {
+      return new NextResponse(
+        JSON.stringify({ success: false, error: 'Phone number is required' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // First, check for parent
     const parent = await prisma.parent.findUnique({
       where: { phone },
-      include: { children: true },
+      include: {
+        childrenAsMother: true,
+        childrenAsFather: true
+      }
     });
 
     if (parent) {
-      return NextResponse.json(parent);
-    } else {
-      return NextResponse.json({ message: 'No parent found with this phone number' }, { status: 404 });
+      const children = [
+        ...parent.childrenAsMother,
+        ...parent.childrenAsFather
+      ];
+
+      return NextResponse.json({ 
+        success: true, 
+        name: parent.name,
+        role: parent.role, // This will be 'mother' or 'father'
+        phone: parent.phone,
+        children: children.map(child => ({
+          id: child.id,
+          name: child.name,
+          age: child.age,
+          grade: child.grade
+        }))
+      });
     }
+
+    // If no parent found, check for guardian
+    const guardian = await prisma.guardian.findUnique({
+      where: { phone },
+      include: {
+        children: true
+      }
+    });
+
+    if (guardian) {
+      return NextResponse.json({ 
+        success: true, 
+        name: guardian.name,
+        role: guardian.relationship, // This will be the specific relationship
+        phone: guardian.phone,
+        children: guardian.children.map(child => ({
+          id: child.id,
+          name: child.name,
+          age: child.age,
+          grade: child.grade
+        }))
+      });
+    }
+
+    // If no parent or guardian found
+    return new NextResponse(
+      JSON.stringify({ success: false, error: 'Parent or guardian not found' }),
+      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
-    console.error('Error finding parent:', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    console.error('❌ Error fetching parent or guardian:', error);
+    return new NextResponse(
+      JSON.stringify({ success: false, error: 'Internal Server Error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }
