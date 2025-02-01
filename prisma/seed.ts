@@ -8,11 +8,11 @@ async function main() {
   await prisma.guardian.deleteMany();
   await prisma.parent.deleteMany();
 
-  // Create Parents
+  // Create Parents with birthdays
   const mother = await prisma.parent.create({
     data: {
       name: 'Alice Johnson',
-      phone: '123-456-7890',
+      phone: '1234567890', // No spaces or dashes
       role: 'mother',
     },
   });
@@ -20,25 +20,25 @@ async function main() {
   const father = await prisma.parent.create({
     data: {
       name: 'Bob Johnson',
-      phone: '987-654-3210',
+      phone: '9876543210', // No spaces or dashes
       role: 'father',
     },
   });
 
-  // Create Guardian
+  // Create Guardian with birthday
   const guardian = await prisma.guardian.create({
     data: {
       name: 'Carol Smith',
-      phone: '555-555-5555',
+      phone: '5555555555', // No spaces or dashes
       relationship: 'Aunt',
     },
   });
 
-  // Create Child
+  // Create Child with birthday
   const child = await prisma.child.create({
     data: {
       name: 'David Johnson',
-      age: 10,
+      birthday: new Date('2013-05-15'), // Example birthday
       grade: '5th',
       motherId: mother.id,
       fatherId: father.id,

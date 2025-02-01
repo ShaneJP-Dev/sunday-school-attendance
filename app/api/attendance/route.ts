@@ -13,32 +13,45 @@ export async function GET() {
             name: true,
             mother: { select: { name: true } },
             father: { select: { name: true } },
-            guardian: { select: { name: true } }
-          }
-        }
+            guardian: { select: { name: true } },
+          },
+        },
       },
       orderBy: {
         date: 'desc', // Most recent first
       },
     });
 
-    const formattedRecords = attendanceRecords.map((record) => ({
-      id: record.id,
-      childName: record.child?.name || 'Unknown',
-      checkedInBy: record.checkedInBy,
-      checkInTime: record.date.toISOString(),
-      service: record.service,
-      relationship: record.relationship
-    }));
+    const formattedRecords = attendanceRecords.map((record) => {
+      let parentName = 'Unknown';
+
+      if (record.child?.mother?.name) {
+        parentName = `${record.child.mother.name} (Mother)`;
+      } else if (record.child?.father?.name) {
+        parentName = `${record.child.father.name} (Father)`;
+      } else if (record.child?.guardian?.name) {
+        parentName = `${record.child.guardian.name} (Guardian)`;
+      }
+
+      return {
+        id: record.id,
+        childName: record.child?.name || 'Unknown',
+        parentName,
+        checkedInBy: record.checkedInBy,
+        checkInTime: record.date.toISOString(),
+        service: record.service,
+        relationship: record.relationship,
+      };
+    });
 
     return NextResponse.json(formattedRecords);
   } catch (error) {
     console.error('❌ Error fetching attendance:', error);
     return new NextResponse(
-      JSON.stringify({ 
-        success: false, 
+      JSON.stringify({
+        success: false,
         error: 'Failed to fetch attendance records',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
@@ -46,6 +59,8 @@ export async function GET() {
     await prisma.$disconnect();
   }
 }
+
+
 
 // POST - Save new attendance record
 export async function POST(req: Request) {

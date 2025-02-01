@@ -41,7 +41,7 @@ model Child {
   motherId   Int?    
   fatherId   Int?    
   guardianId Int?    
-  age        Int
+  birthday   DateTime
   grade      String  
   mother     Parent?     @relation("MotherRelation", fields: [motherId], references: [id])
   father     Parent?     @relation("FatherRelation", fields: [fatherId], references: [id])

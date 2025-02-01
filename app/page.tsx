@@ -2,9 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Settings } from 'lucide-react'; // Import the Settings icon
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ChildCheckInModal } from "@/components/admin/ChildCheckInModal";
+import { 
+  DropdownMenu, 
+  DropdownMenuTrigger, 
+  DropdownMenuContent, 
+  DropdownMenuItem 
+} from "@/components/ui/dropdown-menu";
 
 interface Child {
   id: number;
@@ -40,17 +47,49 @@ export default function Home() {
     }
   };
 
+  const handleSignOut = () => {
+    // Implement sign-out logic here
+    console.log("Signing out...");
+  };
+
   return (
-    <div className="flex flex-col items-center">
-      <h1 className="text-2xl font-bold">Check In Children</h1>
-      <Input
-        type="text"
-        placeholder="Enter phone number"
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-        className="mt-4"
-      />
-      <Button onClick={handleSearch} className="mt-2">Search</Button>
+    <div className="flex flex-col min-h-screen bg-gray-100 p-4">
+      <div className="flex justify-between items-center w-full max-w-md mx-auto mb-4">
+        <h1 className="text-2xl font-bold">Check In Children</h1>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" className="w-10 h-10">
+              <Settings className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => router.push('/admin')}>
+              Admin
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleSignOut}>
+              Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div className="w-full max-w-md mx-auto space-y-4">
+        <Input
+          type="text"
+          placeholder="Enter phone number"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          className="w-full"
+        />
+        <Button 
+          onClick={handleSearch} 
+          className="w-full"
+          disabled={phone.length < 10}
+        >
+          Search
+        </Button>
+      </div>
+
       <ChildCheckInModal
         children={children}
         parentName={parentName}

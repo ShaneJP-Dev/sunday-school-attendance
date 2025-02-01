@@ -1,4 +1,3 @@
-// attendance.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -7,9 +6,9 @@ interface AttendanceRecord {
   id: number;
   childId: number;
   childName: string;
-  parentName: string;
+  parentName: string; // Now includes (Mother), (Father), or (Guardian)
   checkInTime: string;
-  service: string; // Add service field
+  service: string;
 }
 
 const Attendance: React.FC = () => {
@@ -37,9 +36,9 @@ const Attendance: React.FC = () => {
     const pastDate = new Date(dateString);
     const diffInMs = now.getTime() - pastDate.getTime();
     const diffInSeconds = Math.floor(diffInMs / 1000);
-    
+
     const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-  
+
     const timeUnits: { unit: Intl.RelativeTimeFormatUnit; seconds: number }[] = [
       { unit: 'year', seconds: 31536000 },
       { unit: 'month', seconds: 2592000 },
@@ -49,12 +48,12 @@ const Attendance: React.FC = () => {
       { unit: 'minute', seconds: 60 },
       { unit: 'second', seconds: 1 },
     ];
-  
+
     for (const { unit, seconds } of timeUnits) {
       const value = Math.floor(diffInSeconds / seconds);
       if (value !== 0) return rtf.format(-value, unit);
     }
-  
+
     return 'Just now';
   };
 
@@ -66,10 +65,10 @@ const Attendance: React.FC = () => {
           <tr className="bg-gray-200">
             <th className="border-b-2 border-gray-300 px-4 py-2">ID</th>
             <th className="border-b-2 border-gray-300 px-4 py-2">Child Name</th>
-            <th className="border-b-2 border-gray-300 px-4 py-2">Parent Name</th>
+            <th className="border-b-2 border-gray-300 px-4 py-2">Parent</th>
             <th className="border-b-2 border-gray-300 px-4 py-2">Check-In Time</th>
-            <th className="border-b-2 border-gray-300 px-4 py-2">Service</th> {/* New Service column */}
-            <th className="border-b-2 border-gray-300 px-4 py-2">Last Check-In Time</th>
+            <th className="border-b-2 border-gray-300 px-4 py-2">Service</th>
+            <th className="border-b-2 border-gray-300 px-4 py-2">Last Check-In</th>
           </tr>
         </thead>
         <tbody>
@@ -84,7 +83,7 @@ const Attendance: React.FC = () => {
                 <td className="px-4 py-2">{record.childName}</td>
                 <td className="px-4 py-2">{record.parentName}</td>
                 <td className="px-4 py-2">{new Date(record.checkInTime).toLocaleString()}</td>
-                <td className="px-4 py-2">{record.service}</td> {/* Display Service */}
+                <td className="px-4 py-2">{record.service}</td>
                 <td className="px-4 py-2">{formatRelativeTime(record.checkInTime)}</td>
               </tr>
             ))

@@ -4,12 +4,27 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
+// Updated Child interface to include birthday
 interface Child {
   id: number;
   name: string;
-  age: number;
+  birthday: string; // Store birthday as a string (ISO format)
   grade: string;
 }
+
+// Function to calculate age from birthday
+const calculateAge = (birthday: string): number => {
+  const birthDate = new Date(birthday);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDifference = today.getMonth() - birthDate.getMonth();
+  
+  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  
+  return age;
+};
 
 interface ChildCheckInModalProps {
   children: Child[];
@@ -87,7 +102,7 @@ export const ChildCheckInModal: React.FC<ChildCheckInModalProps> = ({
               <div>
                 <p>{child.name}</p>
                 <p className="text-sm text-gray-500">
-                  Age: {child.age}, Grade: {child.grade}
+                  Age: {calculateAge(child.birthday)}, Grade: {child.grade}
                 </p>
               </div>
               <Button
