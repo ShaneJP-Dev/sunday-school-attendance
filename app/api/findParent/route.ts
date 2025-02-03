@@ -1,7 +1,22 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+// Create a singleton instance of PrismaClient
+let prisma: PrismaClient;
+
+if (process.env.NODE_ENV === 'production') {
+  prisma = new PrismaClient();
+} else {
+  // @ts-ignore
+  if (!global.prisma) {
+    // @ts-ignore
+    global.prisma = new PrismaClient();
+  }
+  // @ts-ignore
+  prisma = global.prisma;
+}
+
+const cache = new Map();
 
 export async function GET(request: Request) {
   try {
@@ -15,92 +30,77 @@ export async function GET(request: Request) {
       );
     }
 
-    // First, check for parent
-    const parent = await prisma.parent.findUnique({
-      where: { phone },
-      include: {
-        childrenAsMother: true,
-        childrenAsFather: true
-      }
-    });
+    // Check cache first
+    if (cache.has(phone)) {
+      return NextResponse.json(cache.get(phone));
+    }
 
+    const [parent, guardian] = await Promise.all([
+      prisma.parent.findUnique({
+        where: { phone },
+        include: {
+          childrenAsMother: {
+            select: {
+              id: true,
+              name: true,
+              birthday: true,
+              grade: true
+            }
+          },
+          childrenAsFather: {
+            select: {
+              id: true,
+              name: true,
+              birthday: true,
+              grade: true
+            }
+          }
+        }
+      }),
+      prisma.guardian.findUnique({
+        where: { phone },
+        include: {
+          children: {
+            select: {
+              id: true,
+              name: true,
+              birthday: true,
+              grade: true
+            }
+          }
+        }
+      })
+    ]);
+
+    let response;
     if (parent) {
-      const children = [
-        ...parent.childrenAsMother,
-        ...parent.childrenAsFather
-      ];
-
-      return NextResponse.json({ 
+      const children = [...parent.childrenAsMother, ...parent.childrenAsFather];
+      response = { 
         success: true, 
         name: parent.name,
         role: parent.role,
         phone: parent.phone,
-        children: children.map(child => ({
-          id: child.id,
-          name: child.name,
-          birthday: child.birthday, 
-          grade: child.grade
-        }))
-      });
-    }
-
-    // If no parent found, check for guardian
-    const guardian = await prisma.guardian.findUnique({
-      where: { phone },
-      include: {
-        children: true
-      }
-    });
-
-    if (guardian) {
-      return NextResponse.json({ 
+        children
+      };
+    } else if (guardian) {
+      response = { 
         success: true, 
         name: guardian.name,
         role: guardian.relationship,
         phone: guardian.phone,
-        children: guardian.children.map(child => ({
-          id: child.id,
-          name: child.name,
-          birthday: child.birthday,
-          grade: child.grade
-        }))
-      });
+        children: guardian.children
+      };
+    } else {
+      response = { success: false, error: 'Parent or guardian not found' };
     }
 
-    // If no parent or guardian found
-    return NextResponse.json(
-      { success: false, error: 'Parent or guardian not found' },
-      { status: 404 }
-    );
+    // Cache the response
+    cache.set(phone, response);
+
+    return NextResponse.json(response);
   } catch (error) {
-    // Comprehensive error handling
     console.error('❌ Error fetching parent or guardian:', error);
-    
-    // Ensure error is an object with a message
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : 'Unknown error occurred';
-
-    const errorDetails = error instanceof Error 
-      ? {
-          name: error.name,
-          message: error.message,
-          stack: error.stack
-        }
-      : { message: 'No error details available' };
-
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: errorMessage,
-        details: errorDetails
-      },
-      { 
-        status: 500
-      }
-    );
-  } finally {
-    // Ensure Prisma client is disconnected
-    await prisma.$disconnect();
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }

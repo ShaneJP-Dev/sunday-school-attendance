@@ -1,42 +1,22 @@
-import { NextResponse } from 'next/server';
+import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
-// Add index to the date field in your schema.prisma:
-// @@index([date])
-
-export async function GET() {
-  const thirtyMinutesAgo = new Date();
-  thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+    const prisma = new PrismaClient();
 
   try {
-    const liveRecords = await prisma.attendance.findMany({
-      where: { 
-        date: { 
-          gte: thirtyMinutesAgo 
-        } 
+    const liveAttendance = await prisma.attendance.findMany({
+      where: {
+        date: {
+          gte: new Date(new Date().setHours(0, 0, 0, 0)),
+        },
       },
-      select: {  // Only select the fields we need
-        id: true,
-        date: true,
-        child: {
-          select: {
-            name: true
-          }
-        }
-      },
-      take: 50, // Limit the number of records
-      orderBy: { 
-        date: 'desc' 
+      include: {
+        child: true,
       },
     });
-
-    return NextResponse.json(liveRecords);
+    res.status(200).json(liveAttendance);
   } catch (error) {
-    console.error('Live attendance fetch error:', error);
-    return NextResponse.json({ error: 'Failed to fetch live data' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
+    res.status(500).json({ error: 'Failed to fetch live attendance' });
   }
 }

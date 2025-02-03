@@ -1,18 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { motion } from 'framer-motion';
+import { Check, X } from 'lucide-react';
 
-// Updated Child interface to include birthday
 interface Child {
   id: number;
   name: string;
-  birthday: string; // Store birthday as a string (ISO format)
+  birthday: string;
   grade: string;
 }
 
-// Function to calculate age from birthday
 const calculateAge = (birthday: string): number => {
   const birthDate = new Date(birthday);
   const today = new Date();
@@ -34,6 +33,29 @@ interface ChildCheckInModalProps {
   onClose: () => void;
 }
 
+interface SliderProps {
+  onChecked: () => void;
+  isChecked: boolean;
+  disabled: boolean;
+}
+
+const CheckInButton: React.FC<SliderProps> = ({ onChecked, isChecked, disabled }) => {
+  return (
+    <button
+      onClick={() => !disabled && onChecked()}
+      disabled={disabled}
+      className={`w-32 h-12 flex items-center justify-center rounded-lg text-white font-medium transition-all duration-300
+        ${isChecked ? 'bg-green-500' : 'bg-red-500'}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+      `}
+    >
+      {isChecked ? 'Checked In' : 'Not Checked In'}
+    </button>
+  );
+};
+
+
+
 export const ChildCheckInModal: React.FC<ChildCheckInModalProps> = ({
   children,
   parentName,
@@ -42,9 +64,13 @@ export const ChildCheckInModal: React.FC<ChildCheckInModalProps> = ({
   onClose,
 }) => {
   const [checkedInChildren, setCheckedInChildren] = useState<number[]>([]);
+  const [processing, setProcessing] = useState<number[]>([]);
 
   const handleCheckIn = async (childId: number) => {
+    if (checkedInChildren.includes(childId) || processing.includes(childId)) return;
+
     try {
+      setProcessing(prev => [...prev, childId]);
       const currentTime = new Date();
       const hour = currentTime.getHours();
 
@@ -60,7 +86,7 @@ export const ChildCheckInModal: React.FC<ChildCheckInModalProps> = ({
         checkInTime: currentTime.toISOString(),
         service,
         checkedInBy: parentName,
-        relationship: parentRole, // Use the parent's role/relationship
+        relationship: parentRole,
       }];
 
       const response = await fetch('/api/attendance', {
@@ -76,42 +102,41 @@ export const ChildCheckInModal: React.FC<ChildCheckInModalProps> = ({
         throw new Error(errorData.error || 'Failed to check in');
       }
 
-      // Mark child as checked in
-      setCheckedInChildren([...checkedInChildren, childId]);
+      setCheckedInChildren(prev => [...prev, childId]);
     } catch (error) {
       console.error('Check-in error:', error);
       alert(error instanceof Error ? error.message : 'An error occurred during check-in');
+    } finally {
+      setProcessing(prev => prev.filter(id => id !== childId));
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Check In Children</DialogTitle>
+          <DialogTitle className="text-xl font-bold">Check In Children</DialogTitle>
           <p className="text-sm text-gray-600">
             Checking in by {parentName} ({parentRole})
           </p>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 mt-4">
           {children.map((child) => (
             <div 
               key={child.id} 
-              className="flex justify-between items-center p-2 border rounded"
+              className="flex flex-col sm:flex-row justify-between items-center p-4 border rounded-lg bg-gray-50 space-y-3 sm:space-y-0"
             >
-              <div>
-                <p>{child.name}</p>
+              <div className="text-center sm:text-left">
+                <p className="font-medium text-lg">{child.name}</p>
                 <p className="text-sm text-gray-500">
                   Age: {calculateAge(child.birthday)}, Grade: {child.grade}
                 </p>
               </div>
-              <Button
-                onClick={() => handleCheckIn(child.id)}
-                disabled={checkedInChildren.includes(child.id)}
-                variant={checkedInChildren.includes(child.id) ? 'outline' : 'default'}
-              >
-                {checkedInChildren.includes(child.id) ? 'Checked In' : 'Check In'}
-              </Button>
+              <CheckInButton
+                onChecked={() => handleCheckIn(child.id)}
+                isChecked={checkedInChildren.includes(child.id)}
+                disabled={processing.includes(child.id)}
+              />
             </div>
           ))}
         </div>

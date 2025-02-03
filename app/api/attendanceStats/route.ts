@@ -1,77 +1,36 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { NextApiRequest, NextApiResponse } from 'next';
+import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { startDate, endDate } = req.query;
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const filter = searchParams.get('filter') || 'today';
+  const prisma = new PrismaClient();
 
-  let startDate = new Date();
-  let interval: 'hour' | 'day' | 'week' | 'month' = 'hour';
-  
-  switch (filter) {
-    case 'today':
-      startDate.setHours(0, 0, 0, 0);
-      interval = 'hour';
-      break;
-    case 'week':
-      startDate.setDate(startDate.getDate() - 7);
-      interval = 'day';
-      break;
-    case 'month':
-      startDate.setMonth(startDate.getMonth() - 1);
-      interval = 'day';
-      break;
-    case 'year':
-      startDate.setFullYear(startDate.getFullYear() - 1);
-      interval = 'month';
-      break;
+  // Ensure startDate and endDate are valid Date objects
+  const start = new Date(startDate as string);
+  const end = new Date(endDate as string);
+
+  // Check if the dates are valid
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return res.status(400).json({ error: 'Invalid date format' });
   }
 
   try {
-    let grouping;
-    if (interval === 'hour') {
-      grouping = {
-        _count: true,
-        hour: true
-      };
-    } else if (interval === 'day') {
-      grouping = {
-        _count: true,
-        date: true
-      };
-    } else {
-      grouping = {
-        _count: true,
-        month: true
-      };
-    }
-
     const stats = await prisma.attendance.groupBy({
-      by: ['service'],
-      _count: { service: true },
-      where: { 
-        date: { 
-          gte: startDate 
-        } 
+      by: ['date'],
+      _count: {
+        id: true,
       },
-      orderBy: {
-        service: 'asc'
-      }
+      where: {
+        date: {
+          gte: start,
+          lte: end,
+        },
+      },
     });
-
-    // Transform data for the chart
-    const formattedStats = stats.map(stat => ({
-      service: stat.service,
-      count: stat._count.service
-    }));
-
-    return NextResponse.json(formattedStats);
+    res.status(200).json(stats);
   } catch (error) {
-    console.error('Stats fetch error:', error);
-    return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
+    console.error('Error fetching attendance stats:', error);
+    res.status(500).json({ error: 'Failed to fetch attendance stats' });
   }
 }

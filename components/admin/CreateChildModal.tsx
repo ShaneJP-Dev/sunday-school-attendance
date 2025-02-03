@@ -24,6 +24,11 @@ interface CreateChildModalProps {
   onSuccess?: () => void;
 }
 
+interface CreateChildModalProps {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}
+
 const CreateChildModal = ({ open, onClose, onSuccess }: CreateChildModalProps) => {
   const [step, setStep] = useState<'parents' | 'children'>('parents');
   const [parents, setParents] = useState<ParentInfo[]>([]);

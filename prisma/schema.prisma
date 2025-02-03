@@ -23,6 +23,8 @@ model Parent {
   childrenAsFather  Child[] @relation("FatherRelation")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([phone])
 }
 
 model Guardian {
@@ -33,6 +35,8 @@ model Guardian {
   children     Child[]  @relation("GuardianRelation")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@index([phone])
 }
 
 model Child {
@@ -64,6 +68,7 @@ model Attendance {
   child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
   service     String   // 1st service, 2nd service, or evening service
 
+  @@index([date, service])
   @@index([date])
   @@index([childId])
 }

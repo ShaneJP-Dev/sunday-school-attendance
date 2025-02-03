@@ -1,11 +1,21 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { unstable_cache } from 'next/cache';
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
 
-// GET - Fetch attendance records
-export async function GET() {
-  try {
+if (process.env.NODE_ENV === 'production') {
+  prisma = new PrismaClient();
+} else {
+  if (!(global as any).prisma) {
+    (global as any).prisma = new PrismaClient();
+  }
+  prisma = (global as any).prisma;
+}
+
+// Cache the attendance records for 30 seconds
+const getAttendanceRecords = unstable_cache(
+  async () => {
     const attendanceRecords = await prisma.attendance.findMany({
       include: {
         child: {
@@ -18,11 +28,12 @@ export async function GET() {
         },
       },
       orderBy: {
-        date: 'desc', // Most recent first
+        date: 'desc',
       },
+      take: 100,
     });
 
-    const formattedRecords = attendanceRecords.map((record) => {
+    return attendanceRecords.map((record) => {
       let parentName = 'Unknown';
 
       if (record.child?.mother?.name) {
@@ -43,7 +54,14 @@ export async function GET() {
         relationship: record.relationship,
       };
     });
+  },
+  ['attendance-records'],
+  { revalidate: 30 }
+);
 
+export async function GET() {
+  try {
+    const formattedRecords = await getAttendanceRecords();
     return NextResponse.json(formattedRecords);
   } catch (error) {
     console.error('❌ Error fetching attendance:', error);
@@ -55,19 +73,15 @@ export async function GET() {
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
-
-
-// POST - Save new attendance record
+// POST - Save new attendance records
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('🔹 Received request body:', body);
 
+    // Validate request body
     if (!Array.isArray(body)) {
       return new NextResponse(
         JSON.stringify({ 
@@ -92,28 +106,25 @@ export async function POST(req: Request) {
       }
     }
 
-    // Create attendance records in a transaction
-    const attendanceRecords = await prisma.$transaction(
-      body.map((record) =>
-        prisma.attendance.create({
-          data: {
-            childId: record.childId,
-            checkedInBy: record.checkedInBy,
-            date: new Date(record.checkInTime),
-            service: record.service,
-            relationship: record.relationship || 'unknown', // Ensure relationship is included
-          },
-        })
-      )
-    );
+    // Prepare data for batch insertion
+    const attendanceData = body.map((record) => ({
+      childId: record.childId,
+      checkedInBy: record.checkedInBy,
+      date: new Date(record.checkInTime),
+      service: record.service,
+      relationship: record.relationship || 'unknown',
+    }));
 
-    console.log('✅ Created attendance records:', attendanceRecords);
+    // Insert records in a single batch
+    const attendanceRecords = await prisma.attendance.createMany({
+      data: attendanceData,
+      skipDuplicates: true, // Skip duplicates if any
+    });
 
     return NextResponse.json({
       success: true,
       message: 'Attendance records created successfully',
-      count: attendanceRecords.length,
-      records: attendanceRecords,
+      count: attendanceRecords.count,
     });
   } catch (error) {
     console.error('❌ Error in API route:', error);
@@ -137,7 +148,5 @@ export async function POST(req: Request) {
       }),
       { status: statusCode, headers: { 'Content-Type': 'application/json' } }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
