@@ -13,6 +13,8 @@ if (process.env.NODE_ENV === 'production') {
   prisma = (global as any).prisma;
 }
 
+
+
 // Cache the attendance records for 30 seconds
 const getAttendanceRecords = unstable_cache(
   async () => {

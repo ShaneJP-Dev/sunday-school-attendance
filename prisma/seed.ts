@@ -1,88 +1,93 @@
 import { PrismaClient } from '@prisma/client';
+import { faker } from '@faker-js/faker';
+
 const prisma = new PrismaClient();
 
+// Helper function to batch insert records
+async function batchInsert<T>(items: (() => Promise<T>)[], batchSize: number) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    await Promise.all(items.slice(i, i + batchSize).map(fn => fn()));
+    console.log(`Inserted batch ${i / batchSize + 1}`);
+    await new Promise((resolve) => setTimeout(resolve, 200)); // Small delay to avoid overloading
+  }
+}
+
 async function main() {
-  // Clear existing data
-  await prisma.attendance.deleteMany();
-  await prisma.child.deleteMany();
-  await prisma.guardian.deleteMany();
-  await prisma.parent.deleteMany();
+  console.log('Seeding database...');
 
-  // Create Parents with birthdays
-  const mother = await prisma.parent.create({
-    data: {
-      name: 'Alice Johnson',
-      phone: '1234567890', // No spaces or dashes
-      role: 'mother',
-    },
+  // ✅ Create Parents (Mother & Father)
+  const parentData = Array.from({ length: 100 }).map(() => () =>
+    prisma.parent.create({
+      data: {
+        name: faker.person.fullName(),
+        phone: faker.string.numeric(10),
+        role: faker.helpers.arrayElement(['mother', 'father']),
+      }
+    })
+  );
+  await batchInsert(parentData, 25);
+  console.log("✅ Parents inserted");
+
+  // ✅ Create Guardians
+  const guardianData = Array.from({ length: 50 }).map(() => () =>
+    prisma.guardian.create({
+      data: {
+        name: faker.person.fullName(),
+        phone: faker.string.numeric(10),
+        relationship: faker.helpers.arrayElement(['Uncle', 'Aunt', 'Grandparent', 'Sibling']),
+      }
+    })
+  );
+  await batchInsert(guardianData, 25);
+  console.log("✅ Guardians inserted");
+
+  // ✅ Fetch parents & guardians to assign to children
+  const parents = await prisma.parent.findMany();
+  const guardians = await prisma.guardian.findMany();
+
+  // ✅ Create Children with relationships
+  const childData = Array.from({ length: 200 }).map(() => () => {
+    const hasGuardian = faker.datatype.boolean();
+    return prisma.child.create({
+      data: {
+        name: faker.person.fullName(),
+        birthday: faker.date.birthdate({ min: 4, max: 12, mode: 'age' }),
+        grade: faker.helpers.arrayElement(['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4']),
+        motherId: !hasGuardian && faker.datatype.boolean() ? faker.helpers.arrayElement(parents.filter(p => p.role === 'mother')).id : null,
+        fatherId: !hasGuardian && faker.datatype.boolean() ? faker.helpers.arrayElement(parents.filter(p => p.role === 'father')).id : null,
+        guardianId: hasGuardian ? faker.helpers.arrayElement(guardians).id : null,
+      }
+    });
   });
+  await batchInsert(childData, 50);
+  console.log("✅ Children inserted");
 
-  const father = await prisma.parent.create({
-    data: {
-      name: 'Bob Johnson',
-      phone: '9876543210', // No spaces or dashes
-      role: 'father',
-    },
-  });
+  // ✅ Fetch children for attendance
+  const children = await prisma.child.findMany();
 
-  // Create Guardian with birthday
-  const guardian = await prisma.guardian.create({
-    data: {
-      name: 'Carol Smith',
-      phone: '5555555555', // No spaces or dashes
-      relationship: 'Aunt',
-    },
-  });
+  // ✅ Create Attendance records
+  const attendanceData = children.flatMap((child) =>
+    Array.from({ length: 5 }).map(() => () => 
+      prisma.attendance.create({
+        data: {
+          childId: child.id,
+          date: faker.date.recent({ days: 25 }),
+          checkedInBy: faker.person.fullName(),
+          relationship: faker.helpers.arrayElement(['Mother', 'Father', 'Guardian']),
+          service: faker.helpers.arrayElement(['1st Service', '2nd Service', 'Evening Service']),
+        }
+      })
+    )
+  );
+  await batchInsert(attendanceData, 100);
+  console.log("✅ Attendance records inserted");
 
-  // Create Child with birthday
-  const child = await prisma.child.create({
-    data: {
-      name: 'David Johnson',
-      birthday: new Date('2013-05-15'), // Example birthday
-      grade: '5th',
-      motherId: mother.id,
-      fatherId: father.id,
-      guardianId: guardian.id,
-    },
-  });
-
-  // Create Attendance (checked in by the mother)
-  await prisma.attendance.create({
-    data: {
-      childId: child.id,
-      checkedInBy: mother.name, // Use the mother's name
-      relationship: mother.role, // Use the mother's role
-      service: '1st service',
-    },
-  });
-
-  // Create Attendance (checked in by the father)
-  await prisma.attendance.create({
-    data: {
-      childId: child.id,
-      checkedInBy: father.name, // Use the father's name
-      relationship: father.role, // Use the father's role
-      service: '2nd service',
-    },
-  });
-
-  // Create Attendance (checked in by the guardian)
-  await prisma.attendance.create({
-    data: {
-      childId: child.id,
-      checkedInBy: guardian.name, // Use the guardian's name
-      relationship: guardian.relationship, // Use the guardian's relationship
-      service: 'Evening service',
-    },
-  });
-
-  console.log('Seed data created successfully');
+  console.log("🎉 Database seeding completed successfully!");
 }
 
 main()
   .catch((e) => {
-    console.error(e);
-    process.exit(1);
+    console.error('Error seeding database:', e);
   })
   .finally(async () => {
     await prisma.$disconnect();

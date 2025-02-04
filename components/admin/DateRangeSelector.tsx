@@ -18,11 +18,15 @@ import {
 } from 'date-fns';
 
 interface DateRangeProps {
-  onDateRangeSelect: (start: Date, end: Date) => void;
+  onDateRangeSelect: (start: Date, end: Date, type: string, hourlyData?: any[]) => void;
+  onHourlyAttendance?: (attendance: { hour: string; service: string; count: number }[]) => void;
 }
 
-const DateRangeSelector: React.FC<DateRangeProps> = ({ onDateRangeSelect }) => {
-  const [selectedRange, setSelectedRange] = useState<string>("last7Days");
+const DateRangeSelector: React.FC<DateRangeProps> = ({ 
+  onDateRangeSelect, 
+  onHourlyAttendance 
+}) => {
+  const [selectedRange, setSelectedRange] = useState<string>("last30Days");
 
   const dateRanges = [
     { 
@@ -32,7 +36,8 @@ const DateRangeSelector: React.FC<DateRangeProps> = ({ onDateRangeSelect }) => {
         const now = new Date();
         return { 
           start: startOfDay(now), 
-          end: endOfDay(now) 
+          end: endOfDay(now),
+          type: 'today'
         };
       }
     },
@@ -44,7 +49,8 @@ const DateRangeSelector: React.FC<DateRangeProps> = ({ onDateRangeSelect }) => {
         const yesterday = subDays(today, 1);
         return { 
           start: startOfDay(yesterday), 
-          end: endOfDay(yesterday) 
+          end: endOfDay(yesterday),
+          type: 'yesterday'
         };
       }
     },
@@ -53,8 +59,12 @@ const DateRangeSelector: React.FC<DateRangeProps> = ({ onDateRangeSelect }) => {
       label: "Last 7 Days", 
       range: () => {
         const end = new Date();
-        const start = subDays(end, 7);
-        return { start, end };
+        const start = subDays(end, 6);
+        return { 
+          start, 
+          end,
+          type: 'last7Days'
+        };
       }
     },
     { 
@@ -62,18 +72,12 @@ const DateRangeSelector: React.FC<DateRangeProps> = ({ onDateRangeSelect }) => {
       label: "Last 30 Days", 
       range: () => {
         const end = new Date();
-        const start = subDays(end, 30);
-        return { start, end };
-      }
-    },
-    { 
-      value: "lastMonth", 
-      label: "Last Month", 
-      range: () => {
-        const now = new Date();
-        const start = startOfMonth(subMonths(now, 1));
-        const end = endOfMonth(subMonths(now, 1));
-        return { start, end };
+        const start = subDays(end, 29);
+        return { 
+          start, 
+          end,
+          type: 'last30Days'
+        };
       }
     },
     { 
@@ -82,20 +86,54 @@ const DateRangeSelector: React.FC<DateRangeProps> = ({ onDateRangeSelect }) => {
       range: () => {
         const end = new Date();
         const start = subYears(end, 1);
-        return { start, end };
+        return { 
+          start, 
+          end,
+          type: 'lastYear'
+        };
       }
     }
   ];
 
+  const calculateHourlyAttendance = (start: Date, end: Date) => {
+    // This would ideally come from your actual API data
+    const services = ['First Service', 'Second Service', 'Evening Service'];
+    const hourlyAttendance: { hour: string; service: string; count: number }[] = [];
+
+    services.forEach(service => {
+      for (let hour = 0; hour < 24; hour++) {
+        hourlyAttendance.push({
+          hour: `${hour.toString().padStart(2, '0')}:00`,
+          service,
+          count: Math.floor(Math.random() * 50) // Simulated data
+        });
+      }
+    });
+
+    return hourlyAttendance;
+  };
+  
   const handleRangeSelect = (value: string) => {
     const selectedRangeOption = dateRanges.find(range => range.value === value);
     if (selectedRangeOption) {
-      const { start, end } = selectedRangeOption.range();
+      const { start, end, type } = selectedRangeOption.range();
       setSelectedRange(value);
-      onDateRangeSelect(start, end);
+  
+      const hourlyData = (type === 'today' || type === 'yesterday') 
+        ? calculateHourlyAttendance(start, end) 
+        : undefined;
+  
+      console.log("Selected Range:", start, end); // Debugging the selected range
+      console.log("Hourly Data:", hourlyData); // Debugging hourly data
+  
+      onDateRangeSelect(start, end, type, hourlyData);
+  
+      if (onHourlyAttendance && hourlyData) {
+        onHourlyAttendance(hourlyData);
+      }
     }
   };
-
+  
   return (
     <Select 
       value={selectedRange} 
